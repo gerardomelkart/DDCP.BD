@@ -1,5 +1,4 @@
-USE [DDCP];
-GO
+-- Ejecutar con la base de destino seleccionada.
 SET XACT_ABORT ON;
 BEGIN TRY
     BEGIN TRANSACTION;
@@ -39,3 +38,4 @@ BEGIN CATCH
     THROW;
 END CATCH;
 GO
+

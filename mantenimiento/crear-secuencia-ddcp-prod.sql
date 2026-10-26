@@ -1,5 +1,8 @@
-USE DDCP;
+-- Ejecutar con la base de destino seleccionada.
 SET XACT_ABORT ON;
+DECLARE @UsuarioApi sysname = CONVERT(sysname, SESSION_CONTEXT(N'UsuarioApi'));
+IF @UsuarioApi IS NULL OR DATABASE_PRINCIPAL_ID(@UsuarioApi) IS NULL
+    THROW 50002, 'Defina SESSION_CONTEXT UsuarioApi con un usuario existente de esta base antes de ejecutar el mantenimiento.', 1;
 
 BEGIN TRY
     BEGIN TRANSACTION;
@@ -20,7 +23,8 @@ BEGIN TRY
         EXEC sys.sp_executesql @sql;
     END;
 
-    EXEC(N'GRANT UPDATE ON OBJECT::dbo.SEQ_DECOMISO TO [DDCP_MELKART];');
+    DECLARE @permiso nvarchar(max) = N'GRANT UPDATE ON OBJECT::dbo.SEQ_DECOMISO TO ' + QUOTENAME(@UsuarioApi) + N';';
+    EXEC sys.sp_executesql @permiso;
     COMMIT TRANSACTION;
 END TRY
 BEGIN CATCH
@@ -31,3 +35,4 @@ END CATCH;
 SELECT name, start_value, current_value
 FROM sys.sequences
 WHERE object_id = OBJECT_ID(N'dbo.SEQ_DECOMISO', N'SO');
+

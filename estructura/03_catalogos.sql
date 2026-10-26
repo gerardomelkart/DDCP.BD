@@ -1,0 +1,69 @@
+-- Ejecutar en la base DDCP seleccionada por el administrador.
+-- Agrega los catálogos faltantes y conserva usuarios, permisos actuales y cargas.
+SET XACT_ABORT ON;
+BEGIN TRY
+    BEGIN TRANSACTION;
+    IF OBJECT_ID('dbo.ING_USUARIO', 'U') IS NULL OR OBJECT_ID('dbo.CAT_ENTIDAD', 'U') IS NULL
+        THROW 50001, 'Ejecute primero los scripts de estructura 01 y 02 en la base correcta.', 1;
+
+    IF OBJECT_ID('dbo.CAT_ROL', 'U') IS NULL
+    CREATE TABLE dbo.CAT_ROL (
+        CLAVE varchar(30) NOT NULL CONSTRAINT PK_CAT_ROL PRIMARY KEY,
+        NOMBRE nvarchar(80) NOT NULL,
+        PUEDE_CARGAR bit NOT NULL,
+        PUEDE_ADMINISTRAR_USUARIOS bit NOT NULL,
+        NACIONAL_OBLIGATORIO bit NOT NULL,
+        PREDETERMINADO bit NOT NULL,
+        ORDEN smallint NOT NULL,
+        HABILITADO bit NOT NULL CONSTRAINT DF_CAT_ROL_HABILITADO DEFAULT 1
+    );
+    -- Los valores iniciales pertenecen al catálogo en BD, no al código de API/Front.
+    INSERT dbo.CAT_ROL (CLAVE, NOMBRE, PUEDE_CARGAR, PUEDE_ADMINISTRAR_USUARIOS, NACIONAL_OBLIGATORIO, PREDETERMINADO, ORDEN)
+    SELECT v.CLAVE, v.NOMBRE, v.CARGA, v.ADMINISTRA, v.NACIONAL, v.PREDETERMINADO, v.ORDEN
+    FROM (VALUES
+        ('SUPER_USUARIO', N'Super usuario', 1, 1, 1, 0, 1),
+        ('ENLACE_ESTATAL', N'Enlace', 1, 0, 0, 1, 2),
+        ('CONSULTA', N'Consulta', 0, 0, 0, 0, 3)
+    ) v(CLAVE, NOMBRE, CARGA, ADMINISTRA, NACIONAL, PREDETERMINADO, ORDEN)
+    WHERE NOT EXISTS (SELECT 1 FROM dbo.CAT_ROL r WHERE r.CLAVE = v.CLAVE);
+
+    IF EXISTS (SELECT 1 FROM dbo.ING_USUARIO u LEFT JOIN dbo.CAT_ROL r ON r.CLAVE = u.ROL WHERE r.CLAVE IS NULL)
+        THROW 50002, 'Hay usuarios con roles fuera del catálogo. No se modificaron sus cuentas.', 1;
+    IF EXISTS (SELECT 1 FROM dbo.ING_USUARIO u JOIN dbo.CAT_ROL r ON r.CLAVE = u.ROL WHERE r.NACIONAL_OBLIGATORIO = 1 AND u.ES_NACIONAL = 0)
+        THROW 50003, 'Hay usuarios con un rol que requiere alcance nacional.', 1;
+    IF (SELECT COUNT(*) FROM dbo.CAT_ROL WHERE HABILITADO = 1 AND PREDETERMINADO = 1) <> 1
+        THROW 50004, 'Debe existir un solo rol predeterminado habilitado.', 1;
+    IF NOT EXISTS (SELECT 1 FROM dbo.CAT_ROL WHERE HABILITADO = 1 AND PUEDE_ADMINISTRAR_USUARIOS = 1 AND NACIONAL_OBLIGATORIO = 1)
+        THROW 50005, 'Falta un rol administrador nacional habilitado.', 1;
+
+    IF OBJECT_ID('dbo.CK_ING_USUARIO_ROL', 'C') IS NOT NULL
+        ALTER TABLE dbo.ING_USUARIO DROP CONSTRAINT CK_ING_USUARIO_ROL;
+    IF OBJECT_ID('dbo.CK_ING_SUPER_NACIONAL', 'C') IS NOT NULL
+        ALTER TABLE dbo.ING_USUARIO DROP CONSTRAINT CK_ING_SUPER_NACIONAL;
+    IF OBJECT_ID('dbo.FK_ING_USUARIO_ROL', 'F') IS NULL
+        ALTER TABLE dbo.ING_USUARIO WITH CHECK ADD CONSTRAINT FK_ING_USUARIO_ROL FOREIGN KEY (ROL) REFERENCES dbo.CAT_ROL(CLAVE);
+
+    IF OBJECT_ID('dbo.CAT_MES', 'U') IS NULL
+    CREATE TABLE dbo.CAT_MES (
+        ID_MES tinyint NOT NULL CONSTRAINT PK_CAT_MES PRIMARY KEY,
+        NOMBRE nvarchar(20) NOT NULL,
+        CONSTRAINT CK_CAT_MES_CALENDARIO CHECK (ID_MES BETWEEN 1 AND 12)
+    );
+    INSERT dbo.CAT_MES (ID_MES, NOMBRE)
+    SELECT v.ID_MES, v.NOMBRE FROM (VALUES
+        (1,N'Enero'),(2,N'Febrero'),(3,N'Marzo'),(4,N'Abril'),(5,N'Mayo'),(6,N'Junio'),
+        (7,N'Julio'),(8,N'Agosto'),(9,N'Septiembre'),(10,N'Octubre'),(11,N'Noviembre'),(12,N'Diciembre')
+    ) v(ID_MES,NOMBRE)
+    WHERE NOT EXISTS (SELECT 1 FROM dbo.CAT_MES m WHERE m.ID_MES = v.ID_MES);
+
+    IF (SELECT COUNT(*) FROM dbo.CAT_MES) <> 12 OR EXISTS (SELECT 1 FROM dbo.CAT_MES WHERE NULLIF(LTRIM(RTRIM(NOMBRE)), N'') IS NULL)
+        THROW 50006, 'CAT_MES debe contener los doce meses con nombre.', 1;
+
+    COMMIT;
+    SELECT CLAVE, NOMBRE, PUEDE_CARGAR, PUEDE_ADMINISTRAR_USUARIOS, NACIONAL_OBLIGATORIO, PREDETERMINADO, HABILITADO FROM dbo.CAT_ROL ORDER BY ORDEN;
+    SELECT ID_MES, NOMBRE FROM dbo.CAT_MES ORDER BY ID_MES;
+END TRY
+BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK;
+    THROW;
+END CATCH;
