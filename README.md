@@ -1,4 +1,50 @@
-# DDCP Base de Datos
+# DDCP · Base de datos
+
+DDCP es una aplicación web para recibir, validar y consultar reportes mensuales de **dispositivos decomisados en centros penitenciarios** y personas puestas a disposición. Permite trabajar con alcance nacional o por entidad, según los permisos de la cuenta.
+
+## Repositorios del proyecto
+
+La solución se mantiene en tres repositorios complementarios:
+
+| Repositorio | Responsabilidad | Tecnologías |
+| --- | --- | --- |
+| [DDCP.Front](https://github.com/gerardomelkart/DDCP.Front) | Interfaz, navegación, consulta y carga de archivos. | Angular, TypeScript, HTML y CSS |
+| [IngestaDeDatos.Api](https://github.com/gerardomelkart/IngestaDeDatos.Api) | Autenticación, autorización, validación, confirmación de cargas y exportación. | ASP.NET Core, C#, Dapper y ClosedXML |
+| [DDCP.BD](https://github.com/gerardomelkart/DDCP.BD) | Estructura SQL, catálogos, historial y scripts de mantenimiento. | SQL Server y T-SQL |
+
+## Cómo se conectan
+
+El navegador ejecuta el Front, que consume la API mediante HTTP y JSON. La API valida la sesión y el alcance del usuario antes de leer o modificar SQL Server. **El Front no se conecta directamente a la base de datos.**
+
+Los catálogos de entidades, roles, permisos y meses se consultan desde la base a través de la API. Las conexiones y claves se configuran por ambiente, fuera del código versionado.
+
+## Flujo de trabajo
+
+1. El usuario inicia sesión y recibe las opciones disponibles para su rol y entidad.
+2. Selecciona el periodo y carga un archivo Excel; el nombre de la hoja no determina su validez.
+3. La API valida estructura, entidades y cantidades y devuelve una vista previa.
+4. El usuario revisa y confirma. Si el periodo ya tenía información, se reemplazan las cantidades afectadas y se conserva su histórico.
+5. Los datos confirmados se consultan por periodo y entidad y se pueden exportar a Excel.
+
+## Desarrollo
+
+Proyecto desarrollado por **[Gerardo Melkart Noeller Álvarez](https://github.com/gerardomelkart)**. Integra desarrollo de interfaz, servicios de backend, modelado de datos, procesamiento de Excel y automatización de publicación en Linux.
+
+## Qué contiene este repositorio
+
+- Scripts de adaptación del esquema de reportes por entidad y periodo.
+- Objetos de usuarios, módulos y permisos.
+- Catálogos de roles y meses, reutilizando el catálogo de entidades existente.
+- Almacenamiento de cargas, vistas previas y versiones anteriores de los registros.
+- Consultas de verificación y reparaciones puntuales de mantenimiento.
+
+La validación de archivos y la autorización de solicitudes pertenecen a [la API](https://github.com/gerardomelkart/IngestaDeDatos.Api#readme); las pantallas pertenecen al [Front](https://github.com/gerardomelkart/DDCP.Front#readme).
+
+## Ejecutar la solución
+
+Seleccionar la base de destino en SQL Server y revisar los requisitos de los scripts antes de ejecutarlos. En una base adaptada y operativa no se repiten los pasos de instalación: se aplican únicamente las actualizaciones que correspondan. Las instrucciones siguientes detallan el orden y los objetos involucrados. Después configurar la conexión de la API y ejecutar el Front.
+
+## Documentación técnica
 
 Scripts SQL Server de soporte para Dispositivos decomisados centros penitenciarios.
 
